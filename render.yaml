@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: ai-visibility-read
+    runtime: docker
+    plan: starter
+    autoDeploy: true
+    disk:
+      name: data
+      mountPath: /app/data
+      sizeGB: 1
+    envVars:
+      - key: APP_PASSWORD
+        sync: false
+      - key: SW_API_KEY
+        sync: false
+      - key: SEMRUSH_API_KEY
+        sync: false
+      - key: LOG_WEBHOOK_URL
+        sync: false
+      - key: MOCK
+        value: "0"
