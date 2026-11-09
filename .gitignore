@@ -1,7 +1,5 @@
 node_modules
-data/log.json
-data/*.tmp
+.vercel
 .env
-shot*.png
-shot.pdf
-pdfprev*.png
+.env.local
+*.log

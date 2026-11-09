@@ -1,17 +1,15 @@
 {
   "name": "ai-visibility-read",
-  "version": "1.0.0",
-  "description": "Altudo booth tool: AI visibility read from Similarweb and Semrush, worksheet, PDF, email, capture log",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Altudo booth tool for the Scrunch AI Visibility Hub, Sitecore Symposium 2026. Static page plus Vercel functions on Postgres.",
   "type": "module",
-  "main": "server.js",
+  "engines": { "node": "20.x" },
   "scripts": {
-    "start": "node server.js"
-  },
-  "engines": {
-    "node": ">=20"
+    "dev": "vercel dev",
+    "sync": "python3 scripts/sync.py"
   },
   "dependencies": {
-    "cookie-parser": "^1.4.7",
-    "express": "^4.21.2"
+    "pg": "^8.13.1"
   }
 }
