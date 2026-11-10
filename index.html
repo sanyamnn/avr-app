@@ -331,11 +331,11 @@ svg.ch{width:100%;height:auto;display:block}
   <button class="btn p" id="save" type="button">Save to capture log</button>
   <button class="btn o s hidden" id="ask" type="button">Re-ask the model</button>
   <span id="blkBar"><span id="blkMsg"></span><button class="btn o s" id="blkUndo" type="button">Undo</button><button class="btn o s" id="blkRestore" type="button">Restore all</button></span>
-  <button class="btn o" id="dl" type="button">Download report</button>
+  <button class="btn o" id="dl" type="button">Download PDF</button>
   <button class="btn o" id="copyMail" type="button">Copy email</button>
   <button class="btn o s hidden" id="clear" type="button">New prospect</button> <button class="btn o s" id="passcode" type="button" title="Change the booth passcode on this device">Passcode</button>
   <span class="note" id="saveNote"></span>
-  <span class="note" style="margin-left:auto">To save the PDF: Ctrl+P (Cmd+P), Save as PDF.</span>
+  <span class="note" style="margin-left:auto">Or print: Ctrl+P (Cmd+P), Save as PDF.</span>
 </div>
 </section>
 
@@ -702,15 +702,83 @@ async function askModel(){
   $('ask').disabled=false;
 }
 
+let __pdfLib=null;
+function loadScript(src){ return new Promise((res,rej)=>{ const sc=document.createElement('script'); sc.src=src; sc.onload=res; sc.onerror=()=>rej(new Error("pdf lib")); document.head.appendChild(sc); }); }
+function loadPdfLib(){ if(window.html2canvas&&window.jspdf) return Promise.resolve(); if(__pdfLib) return __pdfLib; __pdfLib=Promise.all([loadScript("https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"),loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js")]).catch(e=>{__pdfLib=null; throw e;}); return __pdfLib; }
+function reportClone(){
+  const rep=document.getElementById('report').cloneNode(true);
+  rep.querySelectorAll('.mvt,.ed').forEach(el=>{ el.removeAttribute('contenteditable'); el.classList.remove('ed'); });
+  rep.querySelectorAll('.blkx,.placeholder,[data-blk].gone').forEach(el=>el.remove());
+  rep.querySelectorAll('[data-blk].sel').forEach(el=>el.classList.remove('sel'));
+  if(!R.recall[R.domain]){ const rc=rep.querySelector('#recall'); if(rc) rc.innerHTML='<p class="note">Model recall was not run at the table. It is part of the complimentary assessment.</p>'; }
+  return rep;
+}
+function inlineSvg(liveRoot,cloneRoot){
+  const L=[...liveRoot.querySelectorAll('svg')], C=[...cloneRoot.querySelectorAll('svg')];
+  const TXT=['font-size','font-family','font-weight','fill','text-anchor','letter-spacing','opacity','dominant-baseline'];
+  const SHP=['fill','stroke','stroke-width','opacity','stroke-dasharray','stroke-linecap','stroke-linejoin','fill-opacity'];
+  L.forEach((sv,i)=>{ const cv=C[i]; if(!cv) return;
+    const le=[...sv.querySelectorAll('*')], ce=[...cv.querySelectorAll('*')];
+    le.forEach((el,j)=>{ const ce_=ce[j]; if(!ce_) return; const cs=getComputedStyle(el); const props=(el.tagName==='text'||el.tagName==='tspan')?TXT:SHP; props.forEach(pn=>{ const v=cs.getPropertyValue(pn); if(v&&v!=='none'||pn==='fill'||pn==='stroke') ce_.setAttribute(pn,v); }); if(cs.display==='none') ce_.remove(); });
+  });
+}
+function pdfCss(){
+  // the print rules, scoped to the offscreen PDF host
+  const txt=[...document.querySelectorAll('style')].map(s=>s.textContent).join("\n"); const m=txt.match(/@media print\{([\s\S]*?)\n\}/); if(!m) return "";
+  const rules=m[1].split("\n").map(l=>l.trim()).filter(l=>l&&!l.startsWith('@page')&&!l.startsWith('body')&&!l.startsWith('header'));
+  return rules.map(r=>{ const i=r.indexOf('{'); if(i<0) return ""; return r.slice(0,i).split(',').map(x=>'.pdfhost '+x.trim()).join(',')+r.slice(i); }).join("\n")+"\n.pdfhost{font-size:12px;color:#1A1530;background:#fff}.pdfhost .recall{grid-template-columns:repeat(4,1fr)}.pdfhost #page2{font-size:11px}.pdfhost .page{page-break-after:auto}.pdfhost .qm{cursor:default}";
+}
+function reportName(ext){ return `${(R.company||R.domain).replace(/[^\w\- ]+/g,'').replace(/\s+/g,'-')}-AI-visibility-read.${ext}`; }
 async function downloadReport(){
   if(!R.domain){ toast("Run the read first"); return; }
   if(!downloads){ toast("Downloads are not available in this view; use Ctrl+P"); return; }
+  const btn=$('dl'); btn.disabled=true; const was=btn.textContent; btn.textContent="Building PDF…";
+  try{
+    await loadPdfLib();
+    const rep=reportClone(); inlineSvg(document.getElementById('report'),rep);
+    rep.querySelectorAll('.foot span').forEach(sp=>{ sp.textContent=sp.textContent.replace(/\s*Page \d of \d\.?$/,''); });
+    const W=780; const host=document.createElement('div'); host.className="pdfhost"; host.style.cssText=`position:absolute;left:0;top:0;width:${W}px;background:#fff;z-index:-1;opacity:0;pointer-events:none`;
+    const st=document.createElement('style'); st.textContent=pdfCss(); host.appendChild(st);
+    rep.className="report"; rep.id=""; host.appendChild(rep); document.body.appendChild(host);
+    await (document.fonts&&document.fonts.ready?document.fonts.ready:Promise.resolve());
+    const {jsPDF}=window.jspdf; const pdf=new jsPDF({unit:'mm',format:'a4',orientation:'portrait'}); const M=10, PW=210-2*M, PH=297-2*M;
+    const pages=[...rep.querySelectorAll('.page')].filter(p=>p.offsetHeight>40);
+    const imgs=[];
+    for(const el of pages){
+      el.style.padding="18px 22px"; el.style.border="0";
+      const cv=await html2canvas(el,{scale:2,useCORS:true,backgroundColor:'#ffffff',logging:false,width:el.offsetWidth,height:el.scrollHeight,windowWidth:W});
+      const perPage=Math.floor(cv.width*PH/PW); // canvas px that fit one A4 page at full width
+      if(cv.height<=perPage*1.28){ imgs.push(cv); continue; } // fit by scaling a little
+      // split at section boundaries, else at a white row, so nothing is cut mid-line
+      const k=cv.width/el.offsetWidth, top=el.getBoundingClientRect().top; const bounds=[...el.querySelectorAll('h2.sec,.two-col,.offer,.foot,[data-blk]')].map(b=>Math.round((b.getBoundingClientRect().top-top)*k)-6).filter(v=>v>0).sort((a,b)=>a-b);
+      const ctx=cv.getContext('2d'); let y=0;
+      while(y<cv.height){
+        let cut=Math.min(cv.height,y+perPage);
+        if(cut<cv.height){ const cand=bounds.filter(v=>v<=y+perPage&&v>y+perPage*0.5); if(cand.length){ cut=cand[cand.length-1]; } else for(let yy=cut;yy>y+perPage*0.6;yy-=2){ const d=ctx.getImageData(0,yy,cv.width,1).data; let white=true; for(let i=0;i<d.length;i+=16){ if(d[i]<245||d[i+1]<245||d[i+2]<245){white=false;break;} } if(white){cut=yy;break;} } }
+        const part=document.createElement('canvas'); part.width=cv.width; part.height=cut-y; part.getContext('2d').drawImage(cv,0,y,cv.width,cut-y,0,0,cv.width,cut-y); imgs.push(part); y=cut;
+      }
+    }
+    imgs.forEach((cv,i)=>{
+      let w=PW, h=w*cv.height/cv.width; if(h>PH){ h=PH; w=h*cv.width/cv.height; }
+      if(i>0) pdf.addPage('a4','portrait');
+      pdf.addImage(cv.toDataURL('image/jpeg',0.92),'JPEG',M+(PW-w)/2,M,w,h);
+      pdf.setFontSize(8); pdf.setTextColor(120); pdf.text(`${R.company||R.domain} · AI Visibility Read · Altudo · page ${i+1} of ${imgs.length}`,M,297-5);
+    });
+    host.remove();
+    const blob=pdf.output('blob');
+    await downloads.save({filename:reportName('pdf'),data:blob}); toast("PDF downloaded");
+  }catch(e){
+    document.querySelectorAll('.pdfhost').forEach(h=>h.remove());
+    if(e&&e.code==="cancelled"){ } else if(e&&e.message==="pdf lib"){ await downloadHtml(); } else { console.error(e); toast("Could not build the PDF; use Ctrl+P, Save as PDF"); }
+  }
+  btn.disabled=false; btn.textContent=was;
+}
+async function downloadHtml(){
   const css=[...document.querySelectorAll('style')].map(s=>s.textContent).join("\n");
-  const rep=document.getElementById('report').cloneNode(true);
-  rep.querySelectorAll('.mvt,.ed').forEach(el=>{ el.removeAttribute('contenteditable'); el.classList.remove('ed'); }); if(!R.recall[R.domain]){ const rc=rep.querySelector('#recall'); if(rc) rc.innerHTML='<p class="note">Model recall was not run at the table. It is part of the complimentary assessment.</p>'; }
+  const rep=reportClone();
   const html=`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(R.company||R.domain)} · AI Visibility Read</title><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Figtree:wght@400;500;600&display=swap"><style>${css}\nbody{padding:16px}.report{max-width:900px;margin:0 auto}</style></head><body><div class="report">${rep.innerHTML}</div><script>document.querySelectorAll('.qm').forEach(q=>q.style.cursor='default');<\/script></body></html>`;
-  const name=`${(R.company||R.domain).replace(/[^\w\- ]+/g,'').replace(/\s+/g,'-')}-AI-visibility-read.html`;
-  try{ await downloads.save({filename:name,data:new Blob([html],{type:"text/html"})}); toast("Report downloaded. Open it and press Ctrl+P for a PDF."); }catch(e){ if(e&&e.code!=="cancelled") toast("Could not save the report"); }
+  const name=reportName('html');
+  try{ await downloads.save({filename:name,data:new Blob([html],{type:"text/html"})}); toast("PDF tool unreachable; HTML saved. Open it and press Ctrl+P for a PDF."); }catch(e){ if(e&&e.code!=="cancelled") toast("Could not save the report"); }
 }
 $('dl').addEventListener('click',downloadReport);
 
