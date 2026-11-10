@@ -1,4 +1,5 @@
 <meta charset="utf-8">
+<script>document.documentElement.setAttribute("data-theme","light");</script>
 <title>AI Visibility Read</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Figtree:wght@400;500;600&display=swap">
@@ -785,14 +786,17 @@ $('dl').addEventListener('click',downloadReport);
 // ---- email
 function buildMail(){
   if(!R.domain||!(R.months.length||R.total[R.domain])){ $('mail').textContent="Run the read first."; return ""; }
-  const co=R.company||R.domain, fn=($('pname').value.trim().split(' ')[0])||"Hi", nx=$('next').value, slot=$('slot').value.trim(), v=lastOf(R.domain), share=R.total[R.domain]?v/R.total[R.domain]:null;
-  const av=avgOf(R.domain); const comps=R.comps.map(d=>`${(R.compNames||{})[d]||d} ${volOf(d)?fmt(volOf(d)):"below the panel floor"}`).join(", ");
-  const rec=R.recall[R.domain]; const recLine=rec?` Asked with no search, a frontier model ${rec.known?`recognizes ${co} (${Math.round(rec.confidence*100)}% confidence) and describes you as: "${rec.description}"`:`does not recognize ${co} at all`}.`:"";
-  const sc=R.scrunch;
-  const cited=sc?"":R.cat.cited.length?` On "${R.cat.topic}", the topic people ask AI about most in ${R.cat.sub}, ${R.cat.rank?`your site is the #${R.cat.rank} most cited source`:`your site is not among the ${R.cat.cited.length} sources AI cites`}${R.cat.brandRank?` and AI names you #${R.cat.brandRank} among brands`:(R.cat.brands.length?" and AI does not name you among the brands it mentions":"")}.`:"";
-  const receipt=sc?` Your Scrunch receipt: AI names ${co} in ${sc.presence}% of discovery answers (#${sc.rank||"–"} of ${sc.setSize} in your set), your own site is ${sc.citationShare}% of what AI cites${sc.suggests?`, and AI suggests ${sc.suggests.name} in ${sc.suggests.share}% of answers about you`:""}${sc.sentiment?`; sentiment ${sc.sentiment.score}/100`:""}.`:($('vscore').value?` Your Scrunch receipt put your visibility at ${$('vscore').value}${$('vrank').value?` (${$('vrank').value})`:""}.`:"");
-  const nextLine=nx==="readout"||nx==="workshop"?`Next step: ${NEXTLABEL[nx]}${slot?`, ${slot}`:" (I will send two times for next week)"}.${nx==="workshop"?" Bring whoever owns the website and whoever owns the brand.":""}`:"Next step, when you are ready: a complimentary 30-minute AI visibility assessment where we reconcile these numbers with your own analytics and show you the low-hanging fruit on your site. Reply with a week that works.";
-  const t=`Subject: ${co}, your AI visibility read from Symposium\n\n${fn}, good to meet you at the AI Visibility Hub. Here is what we worked through at the table; the two-page read is attached.\n\nWhere you stand:${receipt}${cited} ${av!=null?`AI engines sent ${co} about ${fmt(av)} visits a month on average, May to October${share!=null?` (${pct(share)} of all visits in ${mon(R.lastMonth)})`:""}.${comps?` Same period, per month: ${comps}.`:""}`:`AI engines sent ${co} about ${fmt(v)} visits in ${mon(R.lastMonth)}${share!=null?` (${pct(share)} of all visits)`:""}.${comps?` Same month: ${comps}.`:""}`}${(R.dataFlags||[]).length?` One caveat: ${R.dataFlags[0]}`:""}${recLine}${R.index!=null?` Your AI Visibility Index: ${R.index} of 100.`:""}\n\nWhat that means: ${R.diag}${sc&&sc.insight?`\n\nThe read: ${sc.insight}`:""}\n\nThree moves, in order:\n1. ${$('m1').value}\n2. ${$('m2').value}\n3. ${$('m3').value}\n\n${nextLine}\n\nSanyam Chugh, Senior Digital Strategist, Altudo\nSitecore Diamond partner · Official Scrunch agency partner\n\nTraffic figures are panel-based estimates from a third-party dataset licensed by Altudo; we reconcile them with your analytics on the call.`;
+  const co=R.company||R.domain, fn=($('pname').value.trim().split(' ')[0])||"Hi", nx=$('next').value, slot=$('slot').value.trim();
+  const av=avgOf(R.domain), v=lastOf(R.domain), vol=av!=null?av:v, tot=R.totAvg||R.total[R.domain]; const share=tot&&vol!=null?vol/tot:null;
+  const ranked=R.comps.map(d=>[d,volOf(d)||0]).sort((x,y)=>y[1]-x[1]); const top=ranked[0]; const topName=top?((R.compNames||{})[top[0]]||top[0]):"";
+  const lead=top&&vol!=null&&vol>=top[1];
+  const sc=R.scrunch, rec=R.recall[R.domain];
+  let stand="";
+  if(sc){ stand=`AI names ${co} in ${sc.presence}% of the answers Scrunch tested, but your own site is only ${sc.citationShare}% of what it cites. People hear about you and land somewhere else.`; if(vol!=null) stand+=` Visits from AI: about ${fmt(vol)} a month${share!=null?` (${pct(share)} of your traffic)`:""}${top&&!lead?`; ${topName} gets ${fmt(top[1])}`:""}.`; }
+  else if(vol!=null){ stand=`AI engines send ${co} about ${fmt(vol)} visits a month${share!=null?`, ${pct(share)} of your traffic`:""}. ${top?(lead?`You lead your set; ${topName} is next at ${fmt(top[1])}.`:`${topName} gets ${fmt(top[1])}.`):""}`; if(rec&&!(rec.confidence>=0.85)) stand+=` Asked cold, with no search, a frontier model ${rec.known?"knows the name but little else":"could not place you"}.`; }
+  const first=$('m1').value.trim().replace(/\.$/,"");
+  const nextLine=(nx==="readout"||nx==="workshop")?(slot?`See you ${slot}. I will bring the full picture against your own analytics.`:`I will send two times for next week for the 30 minutes we talked about.`):`Worth 30 minutes? Reply with a day next week and I will walk you through it against your own analytics.`;
+  const t=`Subject: ${co} and AI search, from the Altudo table\n\n${fn},\n\nGood meeting you at the Scrunch hub today. The two-page read is attached.\n\nThe short version: ${stand}\n\nWhere I would start: ${first.charAt(0).toLowerCase()+first.slice(1)}.\n\n${nextLine}\n\nSanyam\n\nSanyam Chugh · Altudo\nTraffic figures are panel-based estimates from a third-party dataset licensed by Altudo.`;
   $('mail').textContent=t; return t;
 }
 
@@ -814,7 +818,7 @@ function lev(a,b){ if(a===b) return 0; const m=a.length,n=b.length; if(!m||!n) r
 function matchRows(q){
   const rows=window.__rows||[]; q=normS(q); if(!q) return [];
   const scored=rows.map(r=>{ const co=normS(r.company), d=normS(r.domain), stem=d.split('.')[0]; let sc=0;
-    if(co===q||d===q||stem===q) sc=100; else if(co.startsWith(q)||d.startsWith(q)||stem.startsWith(q)) sc=80; else if(co.split(' ').some(w=>w.startsWith(q))) sc=60; else if(co.includes(q)||d.includes(q)) sc=40; else { const ini=co.split(' ').filter(w=>w.length>2&&!/^(of|the|and|for|de|du)$/.test(w)).map(w=>w[0]).join(''); if(ini===q) sc=50; else if(q.length>=4){ const qw=q.split(' '); const ws=co.split(' ').concat([stem]); if(qw.every(a=>ws.some(w=>w.length>=4&&(w.startsWith(a)||lev(a,w)<=(a.length>=6?2:1)||lev(a,w.slice(0,a.length))<=1)))) sc=30; } }
+    const qc=q.replace(/[^a-z0-9]/g,''), cc=co.replace(/[^a-z0-9]/g,''); if(co===q||d===q||stem===q||(qc&&(qc===cc||qc===stem))) sc=100; else if(co.startsWith(q)||d.startsWith(q)||stem.startsWith(q)||(qc.length>=3&&(cc.startsWith(qc)||stem.startsWith(qc)))) sc=80; else if(co.split(' ').some(w=>w.startsWith(q))) sc=60; else if(co.includes(q)||d.includes(q)) sc=40; else { const ini=co.split(' ').filter(w=>w.length>2&&!/^(of|the|and|for|de|du)$/.test(w)).map(w=>w[0]).join(''); if(ini===q) sc=50; else if(q.length>=4){ const qw=q.split(' '); const ws=co.split(' ').concat([stem]); if(qw.every(a=>ws.some(w=>w.length>=4&&(w.startsWith(a)||lev(a,w)<=(a.length>=6?2:1)||lev(a,w.slice(0,a.length))<=1)))) sc=30; } }
     if(sc&&r.scrunch) sc+=5; if(sc&&!r.prepulled) sc+=3; return [sc,r]; }).filter(x=>x[0]>0).sort((a,b)=>b[0]-a[0]||(a[1].company||"").localeCompare(b[1].company||""));
   const seen=new Set(); return scored.map(x=>x[1]).filter(r=>{ if(seen.has(r.domain)) return false; seen.add(r.domain); return true; }).slice(0,8);
 }
