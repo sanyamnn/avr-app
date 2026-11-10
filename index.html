@@ -174,7 +174,7 @@ svg.ch{width:100%;height:auto;display:block}
     <div class="card" style="background:var(--soft)">
       <h3>Find the brand</h3>
       <div class="sugg"><div style="display:flex;gap:6px"><input id="find" placeholder="Brand name or website" autocomplete="off"><button class="btn p s" id="findBtn" type="button" style="flex:none">Look up</button></div><div id="findSugg" class="list hidden"></div></div>
-      <div class="note" id="findNote" style="margin-top:6px">Type what the badge says. Pre-loaded brands appear as you type; anything else runs a live read.</div>
+      <div class="note" id="findNote" style="margin-top:6px">Type what the badge says. Pre-loaded brands appear as you type and load in one click; any other name fills the website, competitors and industry and runs a live read.</div>
       <div id="findStatus" class="hidden" style="margin-top:8px;font-size:12.5px;line-height:1.45"></div>
       <div id="coCard" class="hidden" style="margin-top:8px;font-size:12.5px;line-height:1.4"></div>
     </div>
@@ -501,11 +501,11 @@ async function queueRead(){
 // ---- reading
 function suggestQuadrant(){
   const v=volOf(R.domain), comps=R.comps.map(volOf).filter(x=>x>0), avg=comps.length?comps.reduce((a,b)=>a+b,0)/comps.length:0, useAvg=avgOf(R.domain)!=null;
-  const real=v>500||(avg>0&&v>0.2*avg);
+  const real=v>500||(v>=100&&avg>0&&v>0.2*avg);
   let vis=$('vis').value, measured=true; const catOk=R.cat.cited.length&&R.cat.relevant!==false;
   if(!vis){ const s=parseFloat($('vscore').value); const rk=($('vrank').value.match(/(\d+)\s*of\s*(\d+)/)||[]); if(!isNaN(s))vis=s>=33?"high":"low"; else if(rk[1])vis=(+rk[1]<=Math.ceil(+rk[2]/2))?"high":"low"; else if(catOk)vis=(R.cat.rank&&R.cat.rank<=10)||(R.cat.brandRank&&R.cat.brandRank<=8)?"high":"low"; else if(R.recall[R.domain])vis=R.recall[R.domain].confidence>=0.6?"high":"low"; else { vis="low"; measured=false; } }
   R.provisional=!measured; R.visSource=$('vis').value?"lead":($('vscore').value||$('vrank').value)?"scrunch":catOk?"category":R.recall[R.domain]?"recall":"unmeasured";
-  R.autoWhy=`visits ${fmt(v)}${useAvg?" a month, May to Oct average":" last month"} (${real?"real":"trivial"}: above 500 or 20% of competitors' average counts as real); visibility ${measured?vis:"not measured yet"} ${$('vis').value?"from the Lead":($('vscore').value||$('vrank').value?"from the Scrunch receipt":catOk?"from category citations and mentions":R.recall[R.domain]?"from model recall":"(the quadrant is provisional until model recall or a Scrunch check lands)")}`;
+  R.autoWhy=`visits ${fmt(v)}${useAvg?" a month, May to Oct average":" last month"} (${real?"real":"trivial"}: above 500, or at least 100 and 20% of competitors' average, counts as real); visibility ${measured?vis:"not measured yet"} ${$('vis').value?"from the Lead":($('vscore').value||$('vrank').value?"from the Scrunch receipt":catOk?"from category citations and mentions":R.recall[R.domain]?"from model recall":"(the quadrant is provisional until model recall or a Scrunch check lands)")}`;
   const catHigh=(R.cat.rank&&R.cat.rank<=10)||(R.cat.brandRank&&R.cat.brandRank<=8); if(($('vscore').value||$('vrank').value)&&catOk&&((vis==="low"&&catHigh)||(vis==="high"&&!catHigh))) R.autoWhy+=". Mixed signals: the receipt and the category citations disagree, so ask which prompts the receipt tested";
   R.auto=vis==="high"?(real?"ahead":"visible"):(real?"rented":"invisible");
   if(!R.quadrant)setQuadrant(R.auto);
@@ -619,7 +619,7 @@ function renderInner(){
     $('lpTable').querySelector('tbody').innerHTML=lpRows.map(p=>`<tr><td style="font-family:ui-monospace,monospace;font-size:12px;overflow-wrap:anywhere">${esc(p.url.replace(/^https?:\/\//,""))}</td><td>${esc(en(p.engine))}</td><td>${pct(p.share)}</td></tr>`).join('');
   }
   document.querySelectorAll('.qm .dot').forEach(d=>d.innerHTML='');
-  doms.forEach((d,i)=>{ const vv=volOf(d), others=doms.filter(x=>x!==d).map(volOf), avg=others.length?others.reduce((a,b)=>a+b,0)/others.length:0; const real=vv>500||(avg>0&&vv>0.2*avg); let q; if(i===0)q=R.quadrant; else { const hi=R.recall[d]?R.recall[d].confidence>=0.6:(vv>vol); q=hi?(real?"ahead":"visible"):(real?"rented":"invisible"); } const el=document.querySelector(`.qm[data-q="${q}"] .dot`); if(el)el.innerHTML+=`<i title="${esc(d)}" style="background:${COLORS[i]}"></i>`; });
+  doms.forEach((d,i)=>{ const vv=volOf(d), others=doms.filter(x=>x!==d).map(volOf), avg=others.length?others.reduce((a,b)=>a+b,0)/others.length:0; const real=vv>500||(vv>=100&&avg>0&&vv>0.2*avg); let q; if(i===0)q=R.quadrant; else { const hi=R.recall[d]?R.recall[d].confidence>=0.6:(vv>vol); q=hi?(real?"ahead":"visible"):(real?"rented":"invisible"); } const el=document.querySelector(`.qm[data-q="${q}"] .dot`); if(el)el.innerHTML+=`<i title="${esc(d)}" style="background:${COLORS[i]}"></i>`; });
   renderRecall(); buildMail();
 }
 function renderScrunch(){
@@ -755,8 +755,8 @@ function renderSugg(){
 }
 function pickSugg(i){
   const box=$('findSugg'); box.classList.add('hidden');
-  if(i==="new"||i===-1||i==null){ lookup(); return; }
-  const r=suggRows[Number(i)]; if(!r) return; $('find').value=r.company||r.domain; loadRow(r);
+  if(i==="new"||i===-1||i==null){ startNew(); return; }
+  const r=suggRows[Number(i)]; if(!r) return; $('find').value=r.company||r.domain; $('findNote').textContent="Loaded. Type another name to switch accounts."; loadRow(r);
   const st=$('findStatus'); st.classList.remove('hidden');
   st.innerHTML=`${rowTags(r)}<div style="margin-top:4px">${r.scrunch?`Scrunch receipt merged with Similarweb. Nothing to run: review the read, add who is sitting here, save.`:r.prepulled?`Pre-loaded from Similarweb. Nothing to run: add who is sitting here and save.`:`Saved at the table${r.ts?" "+new Date(r.ts).toLocaleString('en',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):""}.`}${r.lead?` Lead: ${esc(r.lead)}.`:""}${r.flag&&/Altudo/.test(r.flag)?` <b>${esc(r.flag)}</b>`:""}</div>`;
   toast(`Loaded ${r.company||r.domain}`);
@@ -767,6 +767,19 @@ $('find').addEventListener('blur',()=>setTimeout(()=>$('findSugg').classList.add
 async function autoRecall(){
   if(!sample||!R.domain||R.scrunch||R.recall[R.domain]) return;
   try{ await askModel(); if(editingId&&db&&canWrite&&R.recall[R.domain]){ try{ await db.doc("reads/"+editingId).update({recall:R.recall}); }catch(e){} } }catch(e){}
+}
+async function startNew(){
+  const q=$('find').value.trim(); if(!q) return;
+  resetBlks(); editingId=null; R=blank();
+  ['company','domain','pname','ptitle','pphone','plinkedin','pemail','referrer','vscore','vrank','slot','lead','notes','m1','m2','m3'].forEach(i=>$(i).value="");
+  setComps([]); $('industry').value=''; $('coCard').classList.add('hidden'); $('compSugg').classList.add('hidden'); $('findStatus').classList.add('hidden'); $('findStatus').innerHTML='';
+  $('vis').value="";$('next').value="";$('heat').value="cool";$('sitecore').checked=false;$('top50').checked=false; $('status').innerHTML="";$('errors').innerHTML="";$('saveNote').textContent="";$('runNote').textContent="";
+  render();
+  await lookup();
+  if(!$('domain').value) return;
+  const st=$('findStatus'); st.classList.remove('hidden');
+  if(direct){ st.innerHTML=`<span class="tag new">Live read</span><div style="margin-top:4px">New account. Website, competitors and industry are filled from the company record; the read is running now (uses Similarweb credits). Edit the competitors and press Run the read to redo it.</div>`; await runRead(); }
+  else st.innerHTML=`<span class="tag new">New account</span><div style="margin-top:4px">Website, competitors and industry are filled from the company record. Live pulls are not available on this login; run the read on the Claude page, or check the competitors and press Run the read if a connector is present.</div>`;
 }
 async function lookup(){
   const q=$('find').value.trim(); if(!q)return; $('findBtn').disabled=true; $('findNote').textContent="Looking up…"; $('coCard').classList.add('hidden'); $('compSugg').classList.add('hidden');
@@ -783,7 +796,7 @@ async function lookup(){
   pickIndustry([hit.industry,hit.company_description,hit.company_name].filter(Boolean).join(" ")); if(sample&&hit.company_description){ (async()=>{ try{ const j=await sample.json(`Pick the single best industry pair for this company from the list. Company: ${hit.company_name||q}. Description: ${(hit.company_description||"").slice(0,300)}. Industry hint: ${hit.industry||""}. List (category || sub_category), one per line:\n${TAX.map(p=>p.join(" || ")).join("\n")}\nReturn ONLY JSON {"category":"","sub_category":""} copied exactly from the list.`,{modelTier:"quick",cache:true}); const v=`${j.category}||${j.sub_category}`; if([...$('industry').options].some(o=>o.value===v)) $('industry').value=v; }catch(e){} })(); }
   $('findNote').textContent="Filled in. Check the competitors and the industry, then Run the read."; R.coCard={name:hit.company_name||q,industry:hit.industry||"",hq:[hit.hq_city,hit.hq_country].filter(Boolean).join(", "),employees:hit.employee_count||"",linkedin:hit.company_linkedin_url||""};
 }
-$('findBtn').addEventListener('click',lookup); $('find').addEventListener('keydown',e=>{ const box=$('findSugg'); const open=!box.classList.contains('hidden'); if(open&&(e.key==='ArrowDown'||e.key==='ArrowUp')){ e.preventDefault(); const n=suggRows.length+1; suggIdx=((suggIdx+(e.key==='ArrowDown'?1:-1))%n+n)%n; box.querySelectorAll('.it').forEach((el,i)=>el.classList.toggle('on',i===suggIdx)); return; } if(e.key==='Escape'){ box.classList.add('hidden'); return; } if(e.key==='Enter'){ e.preventDefault(); if(open){ pickSugg(suggIdx>=0&&suggIdx<suggRows.length?suggIdx:"new"); } else lookup(); } });
+$('findBtn').addEventListener('click',startNew); $('find').addEventListener('keydown',e=>{ const box=$('findSugg'); const open=!box.classList.contains('hidden'); if(open&&(e.key==='ArrowDown'||e.key==='ArrowUp')){ e.preventDefault(); const n=suggRows.length+1; suggIdx=((suggIdx+(e.key==='ArrowDown'?1:-1))%n+n)%n; box.querySelectorAll('.it').forEach((el,i)=>el.classList.toggle('on',i===suggIdx)); return; } if(e.key==='Escape'){ box.classList.add('hidden'); return; } if(e.key==='Enter'){ e.preventDefault(); if(open){ pickSugg(suggIdx>=0&&suggIdx<suggRows.length?suggIdx:"new"); } else startNew(); } });
 
 // ---- attendees
 let people=[], bookings=[];
