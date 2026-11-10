@@ -23,8 +23,8 @@ if src:
     html = html.replace("Model recall needs a signed-in viewer.", "Model recall runs on the Claude page; it is part of the complimentary assessment.")
     html = html.replace("The capture log needs a signed-in viewer.", "Enter the booth passcode to open the capture log.")
     # Passcode switch next to New prospect
-    html = html.replace('<button class="btn o s" id="clear" type="button">New prospect</button>',
-        '<button class="btn o s" id="clear" type="button">New prospect</button> <button class="btn o s" id="passcode" type="button" title="Change the booth passcode on this device">Passcode</button>', 1)
+    html = html.replace('<button class="btn o s hidden" id="clear" type="button">New prospect</button>',
+        '<button class="btn o s hidden" id="clear" type="button">New prospect</button> <button class="btn o s" id="passcode" type="button" title="Change the booth passcode on this device">Passcode</button>', 1)
     html = html.replace("$('clear').addEventListener('click',()=>{",
         "$('passcode').addEventListener('click',()=>{ if(window.__avrSignOut) window.__avrSignOut(); });\n$('clear').addEventListener('click',()=>{", 1)
     assert 'id="passcode"' in html and "__avrSignOut" in html
