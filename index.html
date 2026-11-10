@@ -810,10 +810,11 @@ async function runQueue(){ document.body.classList.add('queueing'); const lines=
 // ---- typeahead over the pre-loaded reads
 function rowTags(r){ const t=[]; if(r.scrunch) t.push('<span class="tag sc">Scrunch receipt</span>'); if(r.prepulled) t.push('<span class="tag pre">Pre-loaded</span>'); if(r.name||r.email) t.push(`<span class="tag met">Met · ${esc((r.name||r.email).split(' ')[0])}</span>`); if(/Altudo/.test(r.flag||"")) t.push('<span class="tag pre">Altudo account</span>'); return t.join(' '); }
 function normS(x){ return String(x||"").toLowerCase().replace(/^https?:\/\//,"").replace(/^www\./,"").replace(/[\/?#:].*$/,"").replace(/[^a-z0-9. ]+/g," ").replace(/\s+/g," ").trim(); }
+function lev(a,b){ if(a===b) return 0; const m=a.length,n=b.length; if(!m||!n) return m+n; let prev=Array.from({length:n+1},(_,i)=>i); for(let i=1;i<=m;i++){ const cur=[i]; for(let j=1;j<=n;j++){ cur[j]=Math.min(prev[j]+1,cur[j-1]+1,prev[j-1]+(a[i-1]===b[j-1]?0:1)); } prev=cur; } return prev[n]; }
 function matchRows(q){
   const rows=window.__rows||[]; q=normS(q); if(!q) return [];
   const scored=rows.map(r=>{ const co=normS(r.company), d=normS(r.domain), stem=d.split('.')[0]; let sc=0;
-    if(co===q||d===q||stem===q) sc=100; else if(co.startsWith(q)||d.startsWith(q)||stem.startsWith(q)) sc=80; else if(co.split(' ').some(w=>w.startsWith(q))) sc=60; else if(co.includes(q)||d.includes(q)) sc=40; else { const ini=co.split(' ').filter(w=>w.length>2&&!/^(of|the|and|for|de|du)$/.test(w)).map(w=>w[0]).join(''); if(ini===q) sc=50; }
+    if(co===q||d===q||stem===q) sc=100; else if(co.startsWith(q)||d.startsWith(q)||stem.startsWith(q)) sc=80; else if(co.split(' ').some(w=>w.startsWith(q))) sc=60; else if(co.includes(q)||d.includes(q)) sc=40; else { const ini=co.split(' ').filter(w=>w.length>2&&!/^(of|the|and|for|de|du)$/.test(w)).map(w=>w[0]).join(''); if(ini===q) sc=50; else if(q.length>=4){ const qw=q.split(' '); const ws=co.split(' ').concat([stem]); if(qw.every(a=>ws.some(w=>w.length>=4&&(w.startsWith(a)||lev(a,w)<=(a.length>=6?2:1)||lev(a,w.slice(0,a.length))<=1)))) sc=30; } }
     if(sc&&r.scrunch) sc+=5; if(sc&&!r.prepulled) sc+=3; return [sc,r]; }).filter(x=>x[0]>0).sort((a,b)=>b[0]-a[0]||(a[1].company||"").localeCompare(b[1].company||""));
   const seen=new Set(); return scored.map(x=>x[1]).filter(r=>{ if(seen.has(r.domain)) return false; seen.add(r.domain); return true; }).slice(0,8);
 }
